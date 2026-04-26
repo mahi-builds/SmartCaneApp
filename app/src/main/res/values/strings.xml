@@ -1,3 +1,52 @@
 <resources>
-    <string name="app_name">SmartCaneApp</string>
+    <string name="app_name">Aura</string>
+    <string name="system_status">System Status: %s</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_error">Error: %s</string>
+    
+    <string name="vision">VISION</string>
+    <string name="ai_hazard_scan">AI Hazard Scan</string>
+    <string name="reader">READER</string>
+    <string name="text_to_speech">Text-to-Speech</string>
+    <string name="sos">SOS</string>
+    <string name="emergency">Emergency</string>
+    <string name="profile">PROFILE</string>
+    <string name="user_details">User Details</string>
+    <string name="sync">SYNC</string>
+    <string name="proximity_sensor">Proximity Sensor</string>
+    
+    <string name="emergency_sos">Emergency SOS</string>
+    <string name="emergency_contact">Emergency Contact</string>
+    <string name="person_name">Person Name</string>
+    <string name="phone_number">Phone Number</string>
+    <string name="pick_from_contacts">Pick from Contacts</string>
+    <string name="save_register">Save &amp; Register</string>
+    <string name="sos_info">Tapping SOS sends location to your contact</string>
+    <string name="sos_message_format">EMERGENCY SOS! I need help. \nName: %1$s \nBlood: %2$s \nMedical: %3$s \n</string>
+    
+    <string name="detection_active">Detection Active</string>
+    <string name="no_hazards">Safe</string>
+    <string name="hazard_pothole">Pothole detected</string>
+    <string name="hazard_stairs">Stairs ahead</string>
+    <string name="hazard_door">Door detected</string>
+    
+    <string name="ocr_hint">Point camera at text</string>
+    <string name="processing">Processing...</string>
+    <string name="capture">Read Text</string>
+    
+    <string name="user_name">Name</string>
+    <string name="user_age">Age</string>
+    <string name="blood_group">Blood Group</string>
+    <string name="medical_history">Medical History</string>
+    <string name="save_profile">Save Profile</string>
+    
+    <string name="settings">Settings</string>
+    <string name="language">Language</string>
+    <string name="vibration_feedback">Vibration Feedback</string>
+    <string name="tts_volume">Voice Volume</string>
+    <string name="english">English</string>
+    <string name="hindi">Hindi</string>
+    <string name="save_settings">Save Settings</string>
 </resources>

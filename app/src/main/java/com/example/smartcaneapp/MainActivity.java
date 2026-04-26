@@ -1,204 +1,235 @@
 package com.example.smartcaneapp;
 
 import android.Manifest;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothSocket;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.speech.tts.TextToSpeech;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.TextView;
+import android.widget.Toast;
+import android.os.Vibrator;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.res.Configuration;
+import android.content.res.Resources;
+import android.util.DisplayMetrics;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.KeyEvent;
+import java.util.Locale;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
-import java.io.InputStream;
-import java.util.Locale;
-import java.util.Set;
-import java.util.UUID;
+import com.example.smartcaneapp.core.BluetoothManager;
+import com.example.smartcaneapp.core.SensorDataHandler;
+import com.example.smartcaneapp.core.TtsManager;
+import com.example.smartcaneapp.modules.EmergencyActivity;
+import com.example.smartcaneapp.modules.OcrActivity;
+import com.example.smartcaneapp.modules.SettingsActivity;
+import com.example.smartcaneapp.modules.VisionActivity;
+import com.example.smartcaneapp.modules.ProfileActivity;
 
-public class MainActivity extends AppCompatActivity {
+import java.util.ArrayList;
+import java.util.List;
 
-    BluetoothAdapter bluetoothAdapter;
-    BluetoothSocket socket;
-    InputStream inputStream;
+public class MainActivity extends AppCompatActivity implements BluetoothManager.BluetoothListener {
 
-    TextView tvDistance, tvStatus;
-    Button btnConnect;
+    private TextView tvDistance, tvStatus, tvHeader;
+    private Button btnConnect;
 
-    TextToSpeech tts;
+    private BluetoothManager bluetoothManager;
+    private TtsManager ttsManager;
+    private SensorDataHandler sensorDataHandler;
 
-    String lastSpoken = "";
+    private final ActivityResultLauncher<String[]> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
+                // Simplified completion
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Apply Locale before super.onCreate
+        SharedPreferences prefs = getSharedPreferences("SmartCanePrefs", Context.MODE_PRIVATE);
+        boolean isHindi = prefs.getBoolean("lang_hindi", false);
+        setAppLocale(isHindi ? "hi" : "en");
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        
+        applyLocale();
 
-        // ✅ Permission AFTER super.onCreate
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.BLUETOOTH_CONNECT},
-                    1);
-        }
+        // Initialize Core Managers
+        bluetoothManager = BluetoothManager.getInstance();
+        bluetoothManager.setListener(this);
+        ttsManager = TtsManager.getInstance(this);
+        sensorDataHandler = new SensorDataHandler();
 
+        // UI Setup
         tvDistance = findViewById(R.id.tvDistance);
         tvStatus = findViewById(R.id.tvStatus);
+        tvHeader = findViewById(R.id.tvHeader);
         btnConnect = findViewById(R.id.btnConnect);
+        tvHeader.setOnLongClickListener(v -> {
+            ttsManager.speak("Welcome to Aura. You are on the main screen. " +
+                    "Top left is Vision for hazard detection. " +
+                    "Top right is Reader for text to speech. " +
+                    "Bottom left is SOS for emergency. " +
+                    "Bottom right is Profile for your medical details. " +
+                    "Double tap any button to activate.");
+            return true;
+        });
 
-        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        initVoiceSOS();
+        checkPermissions();
+        
+        findViewById(R.id.btnSettings).setOnClickListener(v -> {
+            vibratePattern(new long[]{0, 100});
+            startActivity(new Intent(this, SettingsActivity.class));
+        });
 
-        tts = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
-                tts.setLanguage(Locale.US);
+        // Navigation
+        findViewById(R.id.btnVision).setOnClickListener(v -> {
+            vibratePattern(new long[]{0, 100}); // 1 short
+            startActivity(new Intent(this, VisionActivity.class));
+        });
+        findViewById(R.id.btnOcr).setOnClickListener(v -> {
+            vibratePattern(new long[]{0, 100, 100, 100}); // 2 short
+            startActivity(new Intent(this, OcrActivity.class));
+        });
+        findViewById(R.id.btnSos).setOnClickListener(v -> {
+            vibratePattern(new long[]{0, 500}); // 1 long
+            startActivity(new Intent(this, EmergencyActivity.class));
+        });
+        findViewById(R.id.btnProfile).setOnClickListener(v -> {
+            vibratePattern(new long[]{0, 100, 100, 100, 100, 100}); // 3 short
+            startActivity(new Intent(this, ProfileActivity.class));
+        });
+
+
+        sensorDataHandler.setListener(data -> {
+            tvDistance.setText(data.distance + " cm");
+            String status = data.getStatusMessage();
+            tvStatus.setText("Status: " + status);
+            
+            if (!status.equals("Safe")) {
+                ttsManager.speak(status);
             }
         });
 
-        btnConnect.setOnClickListener(v -> connectBluetooth());
-    }
-
-    private void connectBluetooth() {
-        try {
-
-            if (bluetoothAdapter == null) {
-                tvStatus.setText("Bluetooth not supported");
-                return;
-            }
-
-            if (!bluetoothAdapter.isEnabled()) {
-                tvStatus.setText("Turn ON Bluetooth");
-                return;
-            }
-
-            Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
-
-            for (BluetoothDevice device : pairedDevices) {
-                if (device.getName().equals("SmartCane")) {
-
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                            ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-                                    != PackageManager.PERMISSION_GRANTED) {
-                        return;
-                    }
-
-                    socket = device.createRfcommSocketToServiceRecord(
-                            UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-                    );
-
-                    socket.connect();
-                    inputStream = socket.getInputStream();
-
-                    tvStatus.setText("Connected ✅");
-
-                    readData();
-                    return;
-                }
-            }
-
-            tvStatus.setText("SmartCane not found");
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            tvStatus.setText("Connection Failed ❌");
-        }
-    }
-
-    private void readData() {
-        new Thread(() -> {
-            byte[] buffer = new byte[1024];
-            int bytes;
-
-            while (true) {
-                try {
-                    bytes = inputStream.read(buffer);
-
-                    if (bytes <= 0) continue;
-
-                    String data = new String(buffer, 0, bytes);
-
-                    runOnUiThread(() -> processData(data));
-
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    break; // stop thread if disconnected
-                }
-            }
-        }).start();
-    }
-
-    private void processData(String data) {
-        try {
-
-            String[] parts = data.split(",");
-
-            int distance = 0;
-            int ir = 1;
-            int water = 1;
-
-            for (String part : parts) {
-
-                if (!part.contains(":")) continue;
-
-                String[] keyValue = part.split(":");
-                if (keyValue.length < 2) continue;
-
-                String key = keyValue[0].trim();
-                String value = keyValue[1].trim();
-
-                try {
-                    if (key.equals("DIST")) {
-                        distance = Integer.parseInt(value);
-                    } else if (key.equals("IR")) {
-                        ir = Integer.parseInt(value);
-                    } else if (key.equals("WATER")) {
-                        water = Integer.parseInt(value);
-                    }
-                } catch (Exception ignored) {}
-            }
-
-            // UI
-            tvDistance.setText("Distance: " + distance + " cm");
-
-            if (water == 0) {
-                tvStatus.setText("⚠️ Water Detected");
-            } else if (ir == 0) {
-                tvStatus.setText("⚠️ Pothole Ahead");
+        btnConnect.setOnClickListener(v -> {
+            if (bluetoothManager.isConnected()) {
+                bluetoothManager.disconnect();
             } else {
-                tvStatus.setText("Safe");
+                bluetoothManager.connect(this);
             }
+        });
+    }
 
-            // Voice
-            String message = "";
+    private void setAppLocale(String languageCode) {
+        Locale locale = new Locale(languageCode);
+        Locale.setDefault(locale);
+        Resources resources = getResources();
+        Configuration config = resources.getConfiguration();
+        DisplayMetrics dm = resources.getDisplayMetrics();
+        config.setLocale(locale);
+        resources.updateConfiguration(config, dm);
+    }
 
-            if (distance < 20) {
-                message = "Obstacle very close";
-            } else if (distance < 50) {
-                message = "Obstacle ahead";
-            } else if (water == 0) {
-                message = "Water detected";
-            } else if (ir == 0) {
-                message = "Pothole ahead";
-            }
-
-            if (!message.equals("") && !message.equals(lastSpoken)) {
-                tts.speak(message, TextToSpeech.QUEUE_FLUSH, null, null);
-                lastSpoken = message;
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
+    private void checkPermissions() {
+        List<String> permissions = new ArrayList<>();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            permissions.add(Manifest.permission.BLUETOOTH_SCAN);
+            permissions.add(Manifest.permission.BLUETOOTH_CONNECT);
         }
+        permissions.add(Manifest.permission.CAMERA);
+        permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
+
+        List<String> missingPermissions = new ArrayList<>();
+        for (String p : permissions) {
+            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
+                missingPermissions.add(p);
+            }
+        }
+
+        if (!missingPermissions.isEmpty()) {
+            requestPermissionLauncher.launch(missingPermissions.toArray(new String[0]));
+        } else {
+            startListening();
+        }
+    }
+
+    private void vibratePattern(long[] pattern) {
+        Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        if (v != null && v.hasVibrator()) {
+            v.vibrate(pattern, -1);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        applyLocale();
+    }
+
+    private void applyLocale() {
+        SharedPreferences prefs = getSharedPreferences("SmartCanePrefs", Context.MODE_PRIVATE);
+        boolean isHindi = prefs.getBoolean("lang_hindi", false);
+        setAppLocale(isHindi ? "hi" : "en");
+        
+        // Update header text to reflect current locale immediately
+        ((TextView)findViewById(R.id.tvHeader)).setText(R.string.app_name);
+        ((TextView)findViewById(R.id.tvStatus)).setText(R.string.status_ready);
+    }
+
+    private void initVoiceSOS() {
+        // Continuous listening removed to stop "dip dip" sound.
+        // Will use Volume Buttons for SOS instead.
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            // Trigger SOS on volume button press
+            vibratePattern(new long[]{0, 1000}); // Long vibration confirmation
+            ttsManager.speak("Volume button emergency trigger. Opening SOS.");
+            startActivity(new Intent(this, EmergencyActivity.class));
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    private void startListening() {
+        // Removed
+    }
+
+    @Override
+    public void onDataReceived(String data) {
+        sensorDataHandler.processRawData(data);
+    }
+
+    @Override
+    public void onStatusChanged(String status) {
+        tvStatus.setText("Status: " + status);
+        btnConnect.setText(bluetoothManager.isConnected() ? "Disconnect" : "Connect");
+    }
+
+    @Override
+    public void onError(String error) {
+        tvStatus.setText("Error: " + error);
+        Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
-        if (tts != null) {
-            tts.stop();
-            tts.shutdown();
-        }
+        // Don't shutdown singleton here if we want background persistence later, 
+        // but for now let's cleanup to avoid leaks
+        ttsManager.shutdown();
     }
-}
+}

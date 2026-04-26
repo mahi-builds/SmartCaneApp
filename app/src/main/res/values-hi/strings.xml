@@ -1,0 +1,52 @@
+<resources>
+    <string name="app_name">आभा (Aura)</string>
+    <string name="system_status">सिस्टम स्थिति: %s</string>
+    <string name="status_ready">तैयार</string>
+    <string name="status_connected">जुड़ा हुआ</string>
+    <string name="status_disconnected">डिस्कनेक्ट</string>
+    <string name="status_error">त्रुटि: %s</string>
+    
+    <string name="vision">दृष्टि</string>
+    <string name="ai_hazard_scan">AI खतरा स्कैन</string>
+    <string name="reader">पाठक</string>
+    <string name="text_to_speech">टेक्स्ट-टू-स्पीच</string>
+    <string name="sos">एसओएस</string>
+    <string name="emergency">आपातकालीन</string>
+    <string name="profile">प्रोफ़ाइल</string>
+    <string name="user_details">उपयोगकर्ता विवरण</string>
+    <string name="sync">सिंक करें</string>
+    <string name="proximity_sensor">निकटता सेंसर</string>
+    
+    <string name="emergency_sos">आपातकालीन एसओएस</string>
+    <string name="emergency_contact">आपातकालीन संपर्क</string>
+    <string name="person_name">व्यक्ति का नाम</string>
+    <string name="phone_number">फोन नंबर</string>
+    <string name="pick_from_contacts">संपर्क से चुनें</string>
+    <string name="save_register">सहेजें और पंजीकृत करें</string>
+    <string name="sos_info">एसओएस पर टैप करने से आपके संपर्क को स्थान भेजा जाता है</string>
+    <string name="sos_message_format">आपातकालीन एसओएस! मुझे मदद चाहिए। \nनाम: %1$s \nरक्त समूह: %2$s \nचिकित्सा विवरण: %3$s \n</string>
+    
+    <string name="detection_active">डिटेक्शन सक्रिय</string>
+    <string name="no_hazards">सुरक्षित</string>
+    <string name="hazard_pothole">गड्ढा पाया गया</string>
+    <string name="hazard_stairs">आगे सीढ़ियाँ हैं</string>
+    <string name="hazard_door">दरवाजा पाया गया</string>
+    
+    <string name="ocr_hint">कैमरे को टेक्स्ट पर रखें</string>
+    <string name="processing">प्रसंस्करण...</string>
+    <string name="capture">टेक्स्ट पढ़ें</string>
+    
+    <string name="user_name">नाम</string>
+    <string name="user_age">आयु</string>
+    <string name="blood_group">रक्त समूह</string>
+    <string name="medical_history">चिकित्सा इतिहास</string>
+    <string name="save_profile">प्रोफ़ाइल सहेजें</string>
+    
+    <string name="settings">सेटिंग्स</string>
+    <string name="language">भाषा</string>
+    <string name="vibration_feedback">कंपन फीडबैक</string>
+    <string name="tts_volume">आवाज की मात्रा</string>
+    <string name="english">अंग्रेजी</string>
+    <string name="hindi">हिंदी</string>
+    <string name="save_settings">सेटिंग्स सहेजें</string>
+</resources>
