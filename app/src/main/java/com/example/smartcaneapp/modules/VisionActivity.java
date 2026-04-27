@@ -2,17 +2,17 @@ package com.example.smartcaneapp.modules;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Matrix;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
-import androidx.camera.core.ExperimentalGetImage;
 import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
@@ -35,6 +35,10 @@ public class VisionActivity extends AppCompatActivity {
     private TtsManager ttsManager;
     private VisionManager visionManager;
 
+    private int frameCount = 0;
+    private String lastSpokenHazard = "";
+    private long lastSpokenTime = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -42,12 +46,20 @@ public class VisionActivity extends AppCompatActivity {
 
         previewView = findViewById(R.id.previewView);
         tvDetectionStatus = findViewById(R.id.tvDetectionStatus);
+
+        previewView.setOnLongClickListener(v -> {
+            if (visionManager != null) {
+                ttsManager.speakImmediate(visionManager.getRawScoreDebug());
+            }
+            return true;
+        });
         
         ttsManager = TtsManager.getInstance(this);
         ttsManager.speakImmediate("Vision mode active. Checking models...");
         
         visionManager = new VisionManager(this);
-        ttsManager.speakImmediate("Models loaded. Scanning.");
+        ttsManager.speakImmediate(visionManager.getDiagnosticSummary());
+        
         cameraExecutor = Executors.newSingleThreadExecutor();
 
         startCamera();
@@ -76,91 +88,100 @@ public class VisionActivity extends AppCompatActivity {
 
         ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888) // Direct RGB
                 .build();
 
-        imageAnalysis.setAnalyzer(cameraExecutor, image -> {
-            processImage(image);
+        imageAnalysis.setAnalyzer(cameraExecutor, imageProxy -> {
+            try {
+                // Convert ImageProxy to Bitmap efficiently
+                Bitmap bitmap = Bitmap.createBitmap(imageProxy.getWidth(), imageProxy.getHeight(), Bitmap.Config.ARGB_8888);
+                bitmap.copyPixelsFromBuffer(imageProxy.getPlanes()[0].getBuffer());
+                
+                // Handle rotation
+                int rotationDegrees = imageProxy.getImageInfo().getRotationDegrees();
+                if (rotationDegrees != 0) {
+                    android.graphics.Matrix matrix = new android.graphics.Matrix();
+                    matrix.postRotate(rotationDegrees);
+                    bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                }
+
+                runAiInference(bitmap);
+            } catch (Exception e) {
+                Log.e("VisionActivity", "Analysis error", e);
+            } finally {
+                imageProxy.close();
+            }
         });
 
         cameraProvider.unbindAll();
         cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
     }
 
-    private long lastAnalysisTime = 0;
+    private int stabilityCounter = 0;
+    private String lastDetectedHazard = "";
 
-    private String lastSpokenHazard = "";
-    private long lastSpokenTime = 0;
+    private void runAiInference(Bitmap bitmap) {
+        try {
+            String resultKey = visionManager.runInference(bitmap);
+            frameCount++;
+            
+            String debugInfo = String.format("[%d] P:%.0f%% S:%.0f%% D:%.0f%%", 
+                                frameCount,
+                                visionManager.getRawScores()[0] * 100, 
+                                visionManager.getRawScores()[1] * 100, 
+                                visionManager.getRawScores()[2] * 100);
+
+            runOnUiThread(() -> {
+                if (!resultKey.equals("safe") && !resultKey.equals("Model not ready")) {
+                    int resId = getResources().getIdentifier(resultKey, "string", getPackageName());
+                    String localizedResult = resId != 0 ? getString(resId) : resultKey;
+                    
+                    tvDetectionStatus.setText(localizedResult + "\n" + debugInfo);
+                    tvDetectionStatus.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_gold));
+                    tvDetectionStatus.setTextColor(ContextCompat.getColor(this, R.color.black));
+                    
+                    long currentTime = System.currentTimeMillis();
+                    // Prevent repetitive speech: only speak if it's a new hazard or 3 seconds have passed
+                    if (!resultKey.equals(lastSpokenHazard) || (currentTime - lastSpokenTime > 3000)) {
+                        ttsManager.speakImmediate(localizedResult);
+                        triggerHapticAlert(resultKey); 
+                        lastSpokenHazard = resultKey;
+                        lastSpokenTime = currentTime;
+                    }
+                } else {
+                    tvDetectionStatus.setText(getString(R.string.no_hazards) + "\n" + debugInfo);
+                    tvDetectionStatus.setBackgroundColor(ContextCompat.getColor(this, R.color.surface));
+                    tvDetectionStatus.setTextColor(ContextCompat.getColor(this, R.color.white));
+                    
+                    if (!lastSpokenHazard.isEmpty()) {
+                        ttsManager.speakImmediate(getString(R.string.no_hazards));
+                        lastSpokenHazard = "";
+                    }
+                }
+            });
+        } catch (Exception e) {
+            Log.e("VisionActivity", "Inference error", e);
+        }
+    }
 
     private void triggerHapticAlert(String hazardKey) {
         android.os.Vibrator vibrator = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         if (vibrator == null || !vibrator.hasVibrator()) return;
 
         if (hazardKey.equals("hazard_door")) {
-            Toast.makeText(this, "DOOR DETECTED!", Toast.LENGTH_SHORT).show();
-            vibrator.vibrate(500); // Longer pulse
+            vibrator.vibrate(500); 
         } else if (hazardKey.equals("hazard_stairs")) {
-            Toast.makeText(this, "STAIRS DETECTED!", Toast.LENGTH_SHORT).show();
-            long[] pattern = {0, 300, 100, 300}; // Longer pulses
+            long[] pattern = {0, 300, 100, 300}; 
             vibrator.vibrate(pattern, -1);
         } else if (hazardKey.equals("hazard_pothole")) {
-            Toast.makeText(this, "POTHOLE DETECTED!", Toast.LENGTH_SHORT).show();
-            vibrator.vibrate(800); // Very long pulse
+            vibrator.vibrate(800); 
         }
-    }
-
-    @OptIn(markerClass = ExperimentalGetImage.class)
-    private void processImage(androidx.camera.core.ImageProxy image) {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastAnalysisTime < 500) { 
-            image.close();
-            return;
-        }
-        lastAnalysisTime = currentTime;
-
-        try {
-            Bitmap bitmap = previewView.getBitmap(); 
-            if (bitmap != null) {
-                String resultKey = visionManager.runInference(bitmap);
-                String debugInfo = String.format("P: %.2f S: %.2f D: %.2f", 
-                                   visionManager.getRawScores()[0], 
-                                   visionManager.getRawScores()[1], 
-                                   visionManager.getRawScores()[2]);
-
-                runOnUiThread(() -> {
-                    if (!resultKey.equals("safe")) {
-                        int resId = getResources().getIdentifier(resultKey, "string", getPackageName());
-                        String localizedResult = resId != 0 ? getString(resId) : resultKey;
-                        tvDetectionStatus.setText(localizedResult + "\n" + debugInfo);
-                        tvDetectionStatus.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_gold));
-                        tvDetectionStatus.setTextColor(ContextCompat.getColor(this, R.color.black));
-                        
-                        if (!resultKey.equals(lastSpokenHazard) || (currentTime - lastSpokenTime > 5000)) {
-                            ttsManager.speakImmediate(localizedResult);
-                            triggerHapticAlert(resultKey); 
-                            lastSpokenHazard = resultKey;
-                            lastSpokenTime = currentTime;
-                        }
-                    } else {
-                        tvDetectionStatus.setText(getString(R.string.no_hazards) + "\n" + debugInfo);
-                        tvDetectionStatus.setBackgroundColor(ContextCompat.getColor(this, R.color.surface));
-                        tvDetectionStatus.setTextColor(ContextCompat.getColor(this, R.color.white));
-                        lastSpokenHazard = "";
-                    }
-                });
-            } else {
-                Log.w("VisionActivity", "Bitmap is null from previewView");
-            }
-        } catch (Exception e) {
-            Log.e("VisionActivity", "Analysis error", e);
-        }
-        image.close();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        cameraExecutor.shutdown();
+        cameraExecutor.shutdownNow();
         if (visionManager != null) {
             visionManager.close();
         }

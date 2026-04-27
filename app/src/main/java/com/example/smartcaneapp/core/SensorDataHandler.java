@@ -34,46 +34,35 @@ public class SensorDataHandler {
     }
 
     public void processRawData(String raw) {
-        buffer.append(raw);
+        if (raw == null) return;
         
-        // Simple heuristic: if we have a full "packet", process it.
-        // Assuming data comes in a single burst or eventually contains all keys.
-        String current = buffer.toString();
-        
-        // Check if we have symbols of a complete packet (start/end markers would be better, 
-        // but using current logic for compatibility)
-        if (current.contains("DIST") && current.contains("WATER")) {
-            SensorData data = parse(current);
+        // Remove any extra spaces or hidden characters like \n or \r
+        String cleanData = raw.trim();
+        if (cleanData.isEmpty()) return;
+
+        try {
+            // Check if the data is a valid number
+            float distance = Float.parseFloat(cleanData);
+            
+            SensorData data = new SensorData();
+            // If distance is 0, it usually means nothing was detected (sensor timed out)
+            // We'll treat 0 as 999 (safe/clear path) to avoid false "0cm" alerts
+            data.distance = (distance <= 0) ? 999 : (int) distance;
+            data.ir = 1;    // Default to safe
+            data.water = 1; // Default to safe
+            data.raw = cleanData;
+            
             if (listener != null) {
                 listener.onDataParsed(data);
             }
-            // Clear buffer if it gets too large or after successful parse
-            if (buffer.length() > 200) {
-                buffer.setLength(0);
+        } catch (NumberFormatException e) {
+            // Not a numeric value? Handle potential status strings
+            if (cleanData.equalsIgnoreCase("no_object") || cleanData.equals("0")) {
+                SensorData data = new SensorData();
+                data.distance = 999; 
+                data.raw = cleanData;
+                if (listener != null) listener.onDataParsed(data);
             }
         }
-    }
-
-    private SensorData parse(String data) {
-        SensorData result = new SensorData();
-        result.raw = data;
-        
-        String[] parts = data.split(",");
-        for (String part : parts) {
-            try {
-                if (part.contains(":")) {
-                    String[] kv = part.split(":");
-                    if (kv.length < 2) continue;
-                    
-                    String key = kv[0].trim();
-                    String value = kv[1].trim();
-                    
-                    if (key.contains("DIST")) result.distance = Integer.parseInt(value);
-                    else if (key.contains("IR")) result.ir = Integer.parseInt(value);
-                    else if (key.contains("WATER")) result.water = Integer.parseInt(value);
-                }
-            } catch (Exception ignored) {}
-        }
-        return result;
     }
 }

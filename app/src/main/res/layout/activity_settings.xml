@@ -28,37 +28,36 @@
             android:orientation="vertical"
             android:padding="24dp">
 
-            <!-- Language Switcher -->
+            <!-- Language Toggle -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/language"
+                android:text="APP LANGUAGE"
                 android:textColor="@color/text_secondary"
-                android:textSize="14sp" />
+                android:textSize="14sp"
+                android:layout_marginBottom="12dp"/>
 
             <com.google.android.material.button.MaterialButtonToggleGroup
                 android:id="@+id/toggleLanguage"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                app:singleSelection="true">
-
+                app:singleSelection="true"
+                app:selectionRequired="true">
                 <Button
-                    android:id="@+id/btnEnglish"
+                    android:id="@+id/btnLangEn"
                     style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/english" />
-
+                    android:layout_height="wrap_content"
+                    android:text="ENGLISH" />
                 <Button
-                    android:id="@+id/btnHindi"
+                    android:id="@+id/btnLangHi"
                     style="?attr/materialButtonOutlinedStyle"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/hindi" />
-                </com.google.android.material.button.MaterialButtonToggleGroup>
+                    android:layout_height="wrap_content"
+                    android:text="हिन्दी" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
 
             <!-- Vibration Toggle -->
             <RelativeLayout

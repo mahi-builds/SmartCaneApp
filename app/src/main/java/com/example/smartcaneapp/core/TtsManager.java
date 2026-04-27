@@ -17,7 +17,7 @@ public class TtsManager {
     private TtsManager(Context context) {
         tts = new TextToSpeech(context, status -> {
             if (status == TextToSpeech.SUCCESS) {
-                tts.setLanguage(Locale.US);
+                tts.setLanguage(new Locale("en", "IN"));
                 isReady = true;
             }
         });

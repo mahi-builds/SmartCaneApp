@@ -20,9 +20,9 @@ import com.google.android.material.switchmaterial.SwitchMaterial;
 
 public class SettingsActivity extends AppCompatActivity {
 
-    private MaterialButtonToggleGroup toggleLanguage;
     private SwitchMaterial switchVibration;
     private SeekBar seekVolume;
+    private MaterialButtonToggleGroup toggleLanguage;
     private SharedPreferences prefs;
 
     @Override
@@ -30,19 +30,19 @@ public class SettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
 
-        toggleLanguage = findViewById(R.id.toggleLanguage);
         switchVibration = findViewById(R.id.switchVibration);
         seekVolume = findViewById(R.id.seekVolume);
+        toggleLanguage = findViewById(R.id.toggleLanguage);
         Button btnSave = findViewById(R.id.btnSaveSettings);
 
         prefs = getSharedPreferences("SmartCanePrefs", Context.MODE_PRIVATE);
 
-        // Load current settings
-        boolean isHindi = prefs.getBoolean("lang_hindi", false);
-        if (isHindi) {
-            toggleLanguage.check(R.id.btnHindi);
+        // Load saved language
+        String lang = prefs.getString("language", "en");
+        if (lang.equals("hi")) {
+            toggleLanguage.check(R.id.btnLangHi);
         } else {
-            toggleLanguage.check(R.id.btnEnglish);
+            toggleLanguage.check(R.id.btnLangEn);
         }
 
         switchVibration.setChecked(prefs.getBoolean("haptic_enabled", true));
@@ -55,26 +55,14 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void saveSettings() {
-        boolean isHindi = toggleLanguage.getCheckedButtonId() == R.id.btnHindi;
+        String selectedLang = (toggleLanguage.getCheckedButtonId() == R.id.btnLangHi) ? "hi" : "en";
         
         prefs.edit()
-                .putBoolean("lang_hindi", isHindi)
-                .putString("app_lang", isHindi ? "hi" : "en")
                 .putBoolean("haptic_enabled", switchVibration.isChecked())
                 .putInt("volume", seekVolume.getProgress())
+                .putString("language", selectedLang)
                 .apply();
 
-        setAppLocale(isHindi ? "hi" : "en");
         finish();
-    }
-
-    private void setAppLocale(String languageCode) {
-        Locale locale = new Locale(languageCode);
-        Locale.setDefault(locale);
-        Resources resources = getResources();
-        Configuration config = resources.getConfiguration();
-        DisplayMetrics dm = resources.getDisplayMetrics();
-        config.setLocale(locale);
-        resources.updateConfiguration(config, dm);
     }
 }

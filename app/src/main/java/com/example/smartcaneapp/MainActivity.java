@@ -54,11 +54,6 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // Apply Locale before super.onCreate
-        SharedPreferences prefs = getSharedPreferences("SmartCanePrefs", Context.MODE_PRIVATE);
-        boolean isHindi = prefs.getBoolean("lang_hindi", false);
-        setAppLocale(isHindi ? "hi" : "en");
-
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         
@@ -178,11 +173,7 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
     }
 
     private void applyLocale() {
-        SharedPreferences prefs = getSharedPreferences("SmartCanePrefs", Context.MODE_PRIVATE);
-        boolean isHindi = prefs.getBoolean("lang_hindi", false);
-        setAppLocale(isHindi ? "hi" : "en");
-        
-        // Update header text to reflect current locale immediately
+        // Updated to remove Hindi support
         ((TextView)findViewById(R.id.tvHeader)).setText(R.string.app_name);
         ((TextView)findViewById(R.id.tvStatus)).setText(R.string.status_ready);
     }

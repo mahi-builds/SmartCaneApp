@@ -4,6 +4,7 @@
     <color name="primary_variant">#1E293B</color>
     <color name="surface">#1E293B</color>
     <color name="accent">#EAB308</color> <!-- Gold -->
+    <color name="accent_gold">#EAB308</color>
     <color name="white">#F8FAFC</color>
     <color name="text_secondary">#94A3B8</color>
     <color name="error">#EF4444</color>

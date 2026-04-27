@@ -39,14 +39,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class OcrActivity extends AppCompatActivity {
-
     private PreviewView previewView;
     private TextView tvOcrResult;
     private ExecutorService cameraExecutor;
     private TextRecognizer textRecognizer;
     private TtsManager ttsManager;
-    private Translator translator;
     private String appLang;
+    private SharedPreferences prefs;
+    private Translator translator;
+    private boolean isTranslatorReady = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,16 +59,16 @@ public class OcrActivity extends AppCompatActivity {
         
         ttsManager = TtsManager.getInstance(this);
         
-        SharedPreferences prefs = getSharedPreferences("SmartCanePrefs", Context.MODE_PRIVATE);
-        boolean isHindi = prefs.getBoolean("lang_hindi", false);
-        appLang = isHindi ? "hi" : "en";
+        prefs = getSharedPreferences("SmartCanePrefs", MODE_PRIVATE);
+        appLang = prefs.getString("language", "en");
+
+        // Devanagari recognizer supports both Latin and Devanagari scripts
+        textRecognizer = TextRecognition.getClient(new DevanagariTextRecognizerOptions.Builder().build());
         
         if (appLang.equals("hi")) {
-            textRecognizer = TextRecognition.getClient(new DevanagariTextRecognizerOptions.Builder().build());
-            initTranslator(TranslateLanguage.ENGLISH, TranslateLanguage.HINDI);
-            ttsManager.setLanguage(new java.util.Locale("hi"));
+            ttsManager.setLanguage(new java.util.Locale("hi", "IN"));
+            initTranslator();
         } else {
-            textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
             ttsManager.setLanguage(java.util.Locale.US);
         }
         
@@ -77,8 +78,12 @@ public class OcrActivity extends AppCompatActivity {
 
         findViewById(R.id.btnCapture).setOnClickListener(v -> {
             String currentText = tvOcrResult.getText().toString();
-            if (!currentText.isEmpty() && !currentText.equals(getString(R.string.ocr_hint)) && !currentText.equals(getString(R.string.processing))) {
-                ttsManager.speakImmediate(currentText);
+            if (!currentText.isEmpty() && !currentText.equals(getString(R.string.ocr_hint))) {
+                if (appLang.equals("hi") && !isTranslatorReady) {
+                    ttsManager.speakImmediate("कृपया प्रतीक्षा करें, अनुवाद लोड हो रहा है"); // "Please wait, translation loading"
+                } else {
+                    ttsManager.speakImmediate(currentText);
+                }
             }
         });
     }
@@ -157,20 +162,16 @@ public class OcrActivity extends AppCompatActivity {
                         }
                         String resultText = sb.toString().trim();
                         if (!resultText.isEmpty()) {
-                            if (translator != null) {
-                                translator.translate(resultText)
-                                    .addOnSuccessListener(translated -> {
-                                        if (!translated.equals(tvOcrResult.getText().toString())) {
-                                            tvOcrResult.setText(translated);
-                                        }
-                                    });
+                            if (appLang.equals("hi") && isTranslatorReady) {
+                                translateAndDisplay(resultText);
                             } else {
                                 if (!resultText.equals(tvOcrResult.getText().toString())) {
                                     tvOcrResult.setText(resultText);
+                                    triggerHapticFeedback();
+                                    // Auto-speak if it's a major new detection
+                                    if (resultText.length() < 30) ttsManager.speak(resultText); 
                                 }
                             }
-                        } else {
-                            tvOcrResult.setText(getString(R.string.ocr_hint));
                         }
                     })
                     .addOnFailureListener(e -> Log.e("OcrActivity", "OCR failed", e))
@@ -180,23 +181,56 @@ public class OcrActivity extends AppCompatActivity {
         }
     }
 
-    private void initTranslator(String source, String target) {
+
+    private void initTranslator() {
         TranslatorOptions options = new TranslatorOptions.Builder()
-                .setSourceLanguage(source)
-                .setTargetLanguage(target)
+                .setSourceLanguage(TranslateLanguage.ENGLISH)
+                .setTargetLanguage(TranslateLanguage.HINDI)
                 .build();
         translator = Translation.getClient(options);
+        
         translator.downloadModelIfNeeded()
-                .addOnSuccessListener(v -> Log.d("OcrActivity", "Translator ready"))
-                .addOnFailureListener(e -> Log.e("OcrActivity", "Translator model download failed", e));
+                .addOnSuccessListener(unused -> {
+                    isTranslatorReady = true;
+                    Log.d("OcrActivity", "Translation model ready");
+                })
+                .addOnFailureListener(e -> Log.e("OcrActivity", "Translation model fail", e));
+    }
+
+    private void translateAndDisplay(String text) {
+        translator.translate(text)
+                .addOnSuccessListener(translatedText -> {
+                    if (!translatedText.equals(tvOcrResult.getText().toString())) {
+                        tvOcrResult.setText(translatedText);
+                        triggerHapticFeedback();
+                        // Auto-speak short translations (like "STOP" -> "रुको")
+                        if (translatedText.length() < 30) ttsManager.speak(translatedText);
+                    }
+                })
+                .addOnFailureListener(e -> Log.e("OcrActivity", "Translation failed", e));
+    }
+
+    private void triggerHapticFeedback() {
+        if (prefs.getBoolean("haptic_enabled", true)) {
+            android.os.Vibrator v = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (v != null) {
+                v.vibrate(android.os.VibrationEffect.createOneShot(50, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+            }
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (ttsManager != null) ttsManager.stop();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        ttsManager.stop();
+        if (ttsManager != null) ttsManager.stop();
+        if (translator != null) translator.close();
         cameraExecutor.shutdown();
         textRecognizer.close();
-        if (translator != null) translator.close();
     }
 }
