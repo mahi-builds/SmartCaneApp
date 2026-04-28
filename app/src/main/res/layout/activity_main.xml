@@ -246,4 +246,19 @@
 
     </GridLayout>
 
+    <!-- Voice Command FAB -->
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/btnVoiceCommand"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="24dp"
+        android:text="Voice Command"
+        android:textColor="@color/primary"
+        android:backgroundTint="@color/accent"
+        app:icon="@android:drawable/ic_btn_speak_now"
+        app:iconTint="@color/primary"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

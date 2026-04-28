@@ -19,6 +19,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.KeyEvent;
 import java.util.Locale;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -46,6 +49,8 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
     private BluetoothManager bluetoothManager;
     private TtsManager ttsManager;
     private SensorDataHandler sensorDataHandler;
+    private SpeechRecognizer speechRecognizer;
+    private Intent speechRecognizerIntent;
 
     private final ActivityResultLauncher<String[]> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
@@ -106,6 +111,18 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
             startActivity(new Intent(this, ProfileActivity.class));
         });
 
+        initSpeechRecognizer();
+
+        findViewById(R.id.btnVoiceCommand).setOnClickListener(v -> {
+            vibratePattern(new long[]{0, 50});
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                speechRecognizer.startListening(speechRecognizerIntent);
+            } else {
+                ttsManager.speak("Microphone permission required");
+                requestPermissionLauncher.launch(new String[]{Manifest.permission.RECORD_AUDIO});
+            }
+        });
+
 
         sensorDataHandler.setListener(data -> {
             tvDistance.setText(data.distance + " cm");
@@ -126,6 +143,61 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
         });
     }
 
+    private void initSpeechRecognizer() {
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        speechRecognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+
+        speechRecognizer.setRecognitionListener(new RecognitionListener() {
+            @Override
+            public void onReadyForSpeech(Bundle params) {
+                ttsManager.speakImmediate("Listening");
+            }
+            @Override
+            public void onBeginningOfSpeech() {}
+            @Override
+            public void onRmsChanged(float rmsdB) {}
+            @Override
+            public void onBufferReceived(byte[] buffer) {}
+            @Override
+            public void onEndOfSpeech() {}
+            @Override
+            public void onError(int error) {
+                ttsManager.speak("Did not catch that");
+            }
+            @Override
+            public void onResults(Bundle results) {
+                ArrayList<String> data = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                if (data != null && !data.isEmpty()) {
+                    processVoiceCommand(data.get(0).toLowerCase());
+                }
+            }
+            @Override
+            public void onPartialResults(Bundle partialResults) {}
+            @Override
+            public void onEvent(int eventType, Bundle params) {}
+        });
+    }
+
+    private void processVoiceCommand(String command) {
+        if (command.contains("vision") || command.contains("hazard") || command.contains("camera")) {
+            ttsManager.speak("Opening vision");
+            startActivity(new Intent(this, VisionActivity.class));
+        } else if (command.contains("read") || command.contains("text") || command.contains("book")) {
+            ttsManager.speak("Opening reader");
+            startActivity(new Intent(this, OcrActivity.class));
+        } else if (command.contains("emergency") || command.contains("sos") || command.contains("help")) {
+            ttsManager.speak("Opening emergency");
+            startActivity(new Intent(this, EmergencyActivity.class));
+        } else if (command.contains("profile") || command.contains("medical") || command.contains("detail")) {
+            ttsManager.speak("Opening profile");
+            startActivity(new Intent(this, ProfileActivity.class));
+        } else {
+            ttsManager.speak("Command not recognized. Say open vision, open reader, or help.");
+        }
+    }
+
     private void setAppLocale(String languageCode) {
         Locale locale = new Locale(languageCode);
         Locale.setDefault(locale);
@@ -144,6 +216,7 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
         }
         permissions.add(Manifest.permission.CAMERA);
         permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        permissions.add(Manifest.permission.RECORD_AUDIO);
 
         List<String> missingPermissions = new ArrayList<>();
         for (String p : permissions) {
@@ -222,5 +295,8 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
         // Don't shutdown singleton here if we want background persistence later, 
         // but for now let's cleanup to avoid leaks
         ttsManager.shutdown();
+        if (speechRecognizer != null) {
+            speechRecognizer.destroy();
+        }
     }
 }
