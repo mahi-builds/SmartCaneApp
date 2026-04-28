@@ -39,7 +39,6 @@ dependencies {
     implementation(libs.camera.camera2)
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
-    implementation(libs.mlkit.text.recognition)
     implementation("com.google.mlkit:text-recognition-devanagari:16.0.0")
     implementation("com.google.mlkit:translate:17.0.1")
     implementation(libs.tensorflow.lite)

@@ -78,6 +78,11 @@ public class VisionManager {
         }
     }
 
+    private static final int HISTORY_SIZE = 15;
+    private float[][] scoreHistory = new float[3][HISTORY_SIZE];
+    private int historyIndex = 0;
+    private int historyCount = 0;
+
     public synchronized String runInference(Bitmap bitmap) {
         if (potholeInterpreter == null || stairsInterpreter == null || doorsInterpreter == null) 
             return "Model not ready";
@@ -94,28 +99,46 @@ public class VisionManager {
         ByteBuffer dBuffer = preprocess(bitmap, doorsW, doorsH, isDoorsNCHW);
         float doorsScore = runModelInference(doorsInterpreter, dBuffer);
 
-        rawScores[0] = potholeScore;
-        rawScores[1] = stairsScore;
-        rawScores[2] = doorsScore;
+        // Update history
+        scoreHistory[0][historyIndex] = potholeScore;
+        scoreHistory[1][historyIndex] = stairsScore;
+        scoreHistory[2][historyIndex] = doorsScore;
+        historyIndex = (historyIndex + 1) % HISTORY_SIZE;
+        if (historyCount < HISTORY_SIZE) historyCount++;
+
+        // Calculate smoothed scores (moving average)
+        float avgPothole = 0, avgStairs = 0, avgDoors = 0;
+        for (int i = 0; i < historyCount; i++) {
+            avgPothole += scoreHistory[0][i];
+            avgStairs += scoreHistory[1][i];
+            avgDoors += scoreHistory[2][i];
+        }
+        avgPothole /= historyCount;
+        avgStairs /= historyCount;
+        avgDoors /= historyCount;
+
+        rawScores[0] = avgPothole;
+        rawScores[1] = avgStairs;
+        rawScores[2] = avgDoors;
 
         float maxScore = 0;
         String bestHazard = "safe";
         
         // Individual thresholds to prevent false positives
         float pThreshold = 0.45f;
-        float sThreshold = 0.65f; // Lowered from 80% to be more responsive
-        float dThreshold = 0.35f; // Low to help with close-up detection
+        float sThreshold = 0.70f; // Increased from 65% to 70% to be slightly stricter
+        float dThreshold = 0.40f; // Increased from 35% to 40%
 
-        if (potholeScore >= pThreshold && potholeScore > maxScore) {
-            maxScore = potholeScore;
+        if (avgPothole >= pThreshold && avgPothole > maxScore) {
+            maxScore = avgPothole;
             bestHazard = "hazard_pothole";
         }
-        if (stairsScore >= sThreshold && stairsScore * 1.20f > maxScore) {
-            maxScore = stairsScore;
+        if (avgStairs >= sThreshold && avgStairs * 1.20f > maxScore) {
+            maxScore = avgStairs;
             bestHazard = "hazard_stairs";
         }
-        if (doorsScore >= dThreshold && doorsScore * 1.20f > maxScore) {
-            maxScore = doorsScore;
+        if (avgDoors >= dThreshold && avgDoors * 1.20f > maxScore) {
+            maxScore = avgDoors;
             bestHazard = "hazard_door";
         }
 
