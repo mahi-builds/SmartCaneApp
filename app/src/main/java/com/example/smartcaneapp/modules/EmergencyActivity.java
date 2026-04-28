@@ -77,9 +77,9 @@ public class EmergencyActivity extends AppCompatActivity {
         etNumber.setText(savedNumber);
 
         if (!savedName.isEmpty()) {
-            ttsManager.speak("Emergency SOS open. Current registered contact is " + savedName + ". Tap the huge button to send SOS, or use the voice command button.");
+            ttsManager.speak("SOS open. Contact is " + savedName);
         } else {
-            ttsManager.speak("Emergency SOS open. No contact registered. Please enter a contact manually or use voice command to call an ambulance.");
+            ttsManager.speak("SOS open. No contact saved.");
         }
 
         initSpeechRecognizer();
@@ -167,15 +167,19 @@ public class EmergencyActivity extends AppCompatActivity {
             } else {
                 ttsManager.speak("Phone permission required to call");
             }
-        } else if (command.startsWith("set contact") || command.startsWith("save contact")) {
-            String contactName = command.replace("set contact", "").replace("save contact", "").trim();
+        } else if (command.contains("set contact") || command.contains("save contact")) {
+            String contactName = command.replace("set contact name", "")
+                                        .replace("save contact name", "")
+                                        .replace("set contact", "")
+                                        .replace("save contact", "")
+                                        .trim();
             if (contactName.isEmpty()) {
                 ttsManager.speak("Please say the name of the contact, like Set contact Mom.");
             } else {
                 searchAndSetContact(contactName);
             }
         } else {
-            ttsManager.speak("Command not recognized. You can say send SOS, read contact, or set contact name.");
+            ttsManager.speak("Command not recognized.");
         }
     }
 
@@ -186,12 +190,10 @@ public class EmergencyActivity extends AppCompatActivity {
             return;
         }
 
-        Uri uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI;
+        Uri uri = Uri.withAppendedPath(ContactsContract.CommonDataKinds.Phone.CONTENT_FILTER_URI, Uri.encode(queryName));
         String[] projection = {ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER};
-        String selection = ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " LIKE ?";
-        String[] selectionArgs = {"%" + queryName + "%"};
 
-        try (Cursor cursor = getContentResolver().query(uri, projection, selection, selectionArgs, null)) {
+        try (Cursor cursor = getContentResolver().query(uri, projection, null, null, null)) {
             if (cursor != null && cursor.moveToFirst()) {
                 String foundName = cursor.getString(0);
                 String foundNumber = cursor.getString(1);
