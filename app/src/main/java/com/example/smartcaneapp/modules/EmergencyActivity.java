@@ -185,27 +185,47 @@ public class EmergencyActivity extends AppCompatActivity {
 
     private void searchAndSetContact(String queryName) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
-            ttsManager.speak("Contacts permission required to search. Please grant permission.");
+            ttsManager.speak("Contacts permission required. Please grant permission, then try the voice command again.");
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CONTACTS}, 3);
             return;
         }
 
-        Uri uri = Uri.withAppendedPath(ContactsContract.CommonDataKinds.Phone.CONTENT_FILTER_URI, Uri.encode(queryName));
+        // Clean up the voice query (remove punctuation, make lowercase)
+        String cleanQuery = queryName.replaceAll("[^a-zA-Z0-9 ]", "").trim().toLowerCase();
+        
+        Uri uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI;
         String[] projection = {ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER};
 
-        try (Cursor cursor = getContentResolver().query(uri, projection, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                String foundName = cursor.getString(0);
-                String foundNumber = cursor.getString(1);
+        String foundName = null;
+        String foundNumber = null;
 
-                etName.setText(foundName);
-                etNumber.setText(foundNumber);
-                saveContact(); // Actually saves it to preferences and speaks confirmation
-            } else {
-                ttsManager.speak("Could not find contact " + queryName + " in your phonebook.");
+        try (Cursor cursor = getContentResolver().query(uri, projection, null, null, null)) {
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    String name = cursor.getString(0);
+                    String number = cursor.getString(1);
+                    if (name != null) {
+                        String cleanName = name.toLowerCase();
+                        // Direct match or partial match
+                        if (cleanName.contains(cleanQuery) || cleanQuery.contains(cleanName)) {
+                            foundName = name;
+                            foundNumber = number;
+                            break;
+                        }
+                    }
+                }
             }
         } catch (Exception e) {
-            ttsManager.speak("Error searching contacts.");
+            ttsManager.speak("Error searching contacts database.");
+            return;
+        }
+
+        if (foundName != null) {
+            etName.setText(foundName);
+            etNumber.setText(foundNumber);
+            saveContact(); // Actually saves it to preferences and speaks confirmation
+        } else {
+            ttsManager.speak("Could not find anybody named " + queryName + " in your phonebook. Please try again.");
         }
     }
 
