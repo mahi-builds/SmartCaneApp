@@ -78,7 +78,7 @@ public class VisionManager {
         }
     }
 
-    public String runInference(Bitmap bitmap) {
+    public synchronized String runInference(Bitmap bitmap) {
         if (potholeInterpreter == null || stairsInterpreter == null || doorsInterpreter == null) 
             return "Model not ready";
 
@@ -226,9 +226,18 @@ public class VisionManager {
         return "Vision system ready. Scanning for hazards.";
     }
 
-    public void close() {
-        if (potholeInterpreter != null) potholeInterpreter.close();
-        if (stairsInterpreter != null) stairsInterpreter.close();
-        if (doorsInterpreter != null) doorsInterpreter.close();
+    public synchronized void close() {
+        if (potholeInterpreter != null) {
+            potholeInterpreter.close();
+            potholeInterpreter = null;
+        }
+        if (stairsInterpreter != null) {
+            stairsInterpreter.close();
+            stairsInterpreter = null;
+        }
+        if (doorsInterpreter != null) {
+            doorsInterpreter.close();
+            doorsInterpreter = null;
+        }
     }
 }

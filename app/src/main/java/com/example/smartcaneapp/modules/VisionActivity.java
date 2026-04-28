@@ -181,9 +181,9 @@ public class VisionActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        cameraExecutor.shutdownNow();
         if (visionManager != null) {
             visionManager.close();
         }
+        cameraExecutor.shutdown();
     }
 }
