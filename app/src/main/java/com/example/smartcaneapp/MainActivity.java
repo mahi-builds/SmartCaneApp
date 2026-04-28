@@ -152,7 +152,8 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
             @Override
             public void onReadyForSpeech(Bundle params) {
-                ttsManager.speakImmediate("Listening");
+                // Removed TTS "Listening" to prevent microphone from picking up its own voice.
+                // The haptic vibration on button press is enough feedback.
             }
             @Override
             public void onBeginningOfSpeech() {}

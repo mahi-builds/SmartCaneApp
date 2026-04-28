@@ -119,7 +119,7 @@ public class EmergencyActivity extends AppCompatActivity {
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
             @Override
             public void onReadyForSpeech(Bundle params) {
-                ttsManager.speakImmediate("Listening");
+                // Removed TTS "Listening" to prevent audio feedback loop
             }
             @Override
             public void onBeginningOfSpeech() {}
@@ -172,6 +172,7 @@ public class EmergencyActivity extends AppCompatActivity {
                                         .replace("save contact name", "")
                                         .replace("set contact", "")
                                         .replace("save contact", "")
+                                        .replace("listening", "")
                                         .trim();
             if (contactName.isEmpty()) {
                 ttsManager.speak("Please say the name of the contact, like Set contact Mom.");
