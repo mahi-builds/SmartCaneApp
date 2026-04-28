@@ -167,8 +167,43 @@ public class EmergencyActivity extends AppCompatActivity {
             } else {
                 ttsManager.speak("Phone permission required to call");
             }
+        } else if (command.startsWith("set contact") || command.startsWith("save contact")) {
+            String contactName = command.replace("set contact", "").replace("save contact", "").trim();
+            if (contactName.isEmpty()) {
+                ttsManager.speak("Please say the name of the contact, like Set contact Mom.");
+            } else {
+                searchAndSetContact(contactName);
+            }
         } else {
-            ttsManager.speak("Command not recognized. You can say send SOS, read contact, or call ambulance.");
+            ttsManager.speak("Command not recognized. You can say send SOS, read contact, or set contact name.");
+        }
+    }
+
+    private void searchAndSetContact(String queryName) {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            ttsManager.speak("Contacts permission required to search. Please grant permission.");
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_CONTACTS}, 3);
+            return;
+        }
+
+        Uri uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI;
+        String[] projection = {ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER};
+        String selection = ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " LIKE ?";
+        String[] selectionArgs = {"%" + queryName + "%"};
+
+        try (Cursor cursor = getContentResolver().query(uri, projection, selection, selectionArgs, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                String foundName = cursor.getString(0);
+                String foundNumber = cursor.getString(1);
+
+                etName.setText(foundName);
+                etNumber.setText(foundNumber);
+                saveContact(); // Actually saves it to preferences and speaks confirmation
+            } else {
+                ttsManager.speak("Could not find contact " + queryName + " in your phonebook.");
+            }
+        } catch (Exception e) {
+            ttsManager.speak("Error searching contacts.");
         }
     }
 
