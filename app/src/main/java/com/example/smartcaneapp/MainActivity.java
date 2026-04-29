@@ -51,6 +51,7 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
     private SensorDataHandler sensorDataHandler;
     private SpeechRecognizer speechRecognizer;
     private Intent speechRecognizerIntent;
+    private long lastSosTriggerTime = 0;
 
     private final ActivityResultLauncher<String[]> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
@@ -127,9 +128,19 @@ public class MainActivity extends AppCompatActivity implements BluetoothManager.
         sensorDataHandler.setListener(data -> {
             tvDistance.setText(data.distance + " cm");
             String status = data.getStatusMessage();
-            tvStatus.setText("Status: " + status);
+            tvStatus.setText("Status: " + status + " | IR: " + (data.ir == 1 ? "Safe" : "Hazard") + " | Water: " + (data.water == 1 ? "Safe" : "Hazard"));
             
-            if (!status.equals("Safe")) {
+            if (data.button == 1) {
+                long currentTime = System.currentTimeMillis();
+                if (currentTime - lastSosTriggerTime > 5000) { // 5 second cooldown
+                    lastSosTriggerTime = currentTime;
+                    vibratePattern(new long[]{0, 1000}); // Long vibration confirmation
+                    ttsManager.speak("Hardware button emergency trigger. Sending SOS.");
+                    Intent intent = new Intent(MainActivity.this, EmergencyActivity.class);
+                    intent.putExtra("TRIGGER_SOS", true);
+                    startActivity(intent);
+                }
+            } else if (!status.equals("Safe")) {
                 ttsManager.speak(status);
             }
         });

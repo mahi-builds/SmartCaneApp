@@ -6,6 +6,7 @@ public class SensorDataHandler {
         public int distance = 100;
         public int ir = 1;      // 1 = safe, 0 = hazard
         public int water = 1;   // 1 = safe, 0 = hazard
+        public int button = 0;  // 1 = pressed, 0 = not pressed
         public String raw = "";
 
         public boolean isSafe() {
@@ -22,6 +23,7 @@ public class SensorDataHandler {
     }
 
     private StringBuilder buffer = new StringBuilder();
+    private SensorData currentData = new SensorData();
 
     public interface SensorListener {
         void onDataParsed(SensorData data);
@@ -36,33 +38,54 @@ public class SensorDataHandler {
     public void processRawData(String raw) {
         if (raw == null) return;
         
-        // Remove any extra spaces or hidden characters like \n or \r
-        String cleanData = raw.trim();
-        if (cleanData.isEmpty()) return;
+        buffer.append(raw);
+        int newlineIndex;
+        while ((newlineIndex = buffer.indexOf("\n")) != -1) {
+            String line = buffer.substring(0, newlineIndex).trim();
+            buffer.delete(0, newlineIndex + 1);
+            
+            if (!line.isEmpty()) {
+                parseLine(line);
+            }
+        }
+    }
 
-        try {
-            // Check if the data is a valid number
-            float distance = Float.parseFloat(cleanData);
-            
-            SensorData data = new SensorData();
-            // If distance is 0, it usually means nothing was detected (sensor timed out)
-            // We'll treat 0 as 999 (safe/clear path) to avoid false "0cm" alerts
-            data.distance = (distance <= 0) ? 999 : (int) distance;
-            data.ir = 1;    // Default to safe
-            data.water = 1; // Default to safe
-            data.raw = cleanData;
-            
-            if (listener != null) {
-                listener.onDataParsed(data);
+    private void parseLine(String line) {
+        currentData.raw = line;
+        currentData.button = 0; // Reset button trigger for each line
+
+        if (line.startsWith("DIST:")) {
+            try {
+                float dist = Float.parseFloat(line.substring(5).trim());
+                currentData.distance = (dist <= 0) ? 999 : (int) dist;
+            } catch (Exception e) {
+                currentData.distance = 999;
             }
-        } catch (NumberFormatException e) {
-            // Not a numeric value? Handle potential status strings
-            if (cleanData.equalsIgnoreCase("no_object") || cleanData.equals("0")) {
-                SensorData data = new SensorData();
-                data.distance = 999; 
-                data.raw = cleanData;
-                if (listener != null) listener.onDataParsed(data);
+        } else if (line.startsWith("IR:")) {
+            String status = line.substring(3).trim();
+            currentData.ir = status.equals("DETECTED") ? 0 : 1;
+        } else if (line.startsWith("WATER:")) {
+            String status = line.substring(6).trim();
+            if (status.equals("DETECTED")) {
+                currentData.water = 0;
+            } else {
+                try {
+                    int waterVal = Integer.parseInt(status);
+                    currentData.water = (waterVal > 500) ? 0 : 1;
+                } catch (Exception e) {}
             }
+        } else if (line.equals("EMERGENCY:SOS")) {
+            currentData.button = 1;
+        }
+
+        if (listener != null) {
+            SensorData copy = new SensorData();
+            copy.distance = currentData.distance;
+            copy.ir = currentData.ir;
+            copy.water = currentData.water;
+            copy.button = currentData.button;
+            copy.raw = currentData.raw;
+            listener.onDataParsed(copy);
         }
     }
 }

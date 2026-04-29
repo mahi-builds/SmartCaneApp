@@ -108,6 +108,11 @@ public class EmergencyActivity extends AppCompatActivity {
             v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             sendSosTrigger();
         });
+        
+        if (getIntent().getBooleanExtra("TRIGGER_SOS", false)) {
+            // Slight delay to ensure the activity is fully visible before firing intent
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this::sendSosTrigger, 500);
+        }
     }
 
     private void initSpeechRecognizer() {
