@@ -126,7 +126,7 @@ public class VisionManager {
         
         // Individual thresholds to prevent false positives
         float pThreshold = 0.45f;
-        float sThreshold = 0.70f; // Increased from 65% to 70% to be slightly stricter
+        float sThreshold = 0.62f; // Increased from 65% to 70% to be slightly stricter
         float dThreshold = 0.40f; // Increased from 35% to 40%
 
         if (avgPothole >= pThreshold && avgPothole > maxScore) {
