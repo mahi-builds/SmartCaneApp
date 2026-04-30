@@ -13,3 +13,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Video Assets
+video_assets/
+*.mp4
+*TEMP_MPY*.mp4
